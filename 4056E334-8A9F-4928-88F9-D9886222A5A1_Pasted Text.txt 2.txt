@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>不動點遞歸：ma=ma·(-1)^a 螺旋臨界條件</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@200;300&family=IBM+Plex+Mono:wght@300;400&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --void:#030509;--deep:#070d14;--shore:#0d1f35;
+  --crest:#2a6dbf;--foam:#5a9de8;--light:#a8c8f0;
+  --text:#6a94b8;--text2:#9ab8d0;--tide:#163356;
+}
+html,body{width:100%;height:100%;background:var(--void);overflow:hidden;font-family:'IBM Plex Mono',monospace;color:var(--text)}
+canvas#field{position:fixed;top:0;left:0;width:100%;height:100%}
+.ui{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr auto}
+header{grid-column:1/3;padding:1.5rem 2rem 0.8rem;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid rgba(30,77,130,0.3);background:linear-gradient(to bottom,rgba(4,6,10,0.88) 0%,transparent 100%)}
+.title-block h1{font-family:'Noto Serif TC',serif;font-weight:200;font-size:1rem;color:var(--light);letter-spacing:0.18em;margin-bottom:0.25rem}
+.title-block p{font-size:0.48rem;color:var(--tide);letter-spacing:0.28em;text-transform:uppercase}
+.iter{text-align:right}.iter .n{font-size:1.8rem;color:var(--crest);opacity:0.6;line-height:1;font-weight:300}.iter .l{font-size:0.42rem;color:var(--tide);letter-spacing:0.22em;text-transform:uppercase}
+.eq-panel{grid-column:1;grid-row:2;display:flex;flex-direction:column;justify-content:flex-end;padding:0 0 1.8rem 2rem;pointer-events:none}
+.eq-block{margin-bottom:1rem;opacity:0.6;transition:opacity 0.8s}.eq-block.pulse{opacity:1}
+.eq-label{font-size:0.4rem;letter-spacing:0.28em;color:var(--tide);text-transform:uppercase;margin-bottom:0.3rem}
+.eq-text{font-size:0.72rem;color:var(--foam);font-family:'Noto Serif TC',serif;font-weight:300;line-height:1.7}
+.eq-text em{color:#d4a847;font-style:normal}
+.stat-panel{grid-column:2;grid-row:2;display:flex;flex-direction:column;justify-content:center;padding:0 1.8rem 0 0;gap:1rem;pointer-events:none}
+.stat-item{text-align:right}.s-label{font-size:0.4rem;letter-spacing:0.22em;color:var(--tide);text-transform:uppercase;margin-bottom:0.15rem}.s-val{font-size:1rem;color:var(--crest)}
+footer{grid-column:1/3;padding:0.8rem 2rem 1.2rem;display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(30,77,130,0.2);background:linear-gradient(to top,rgba(4,6,10,0.92) 0%,transparent 100%);pointer-events:all}
+.controls{display:flex;gap:0.8rem}
+button{background:transparent;border:1px solid var(--shore);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:0.52rem;letter-spacing:0.12em;padding:0.4rem 0.9rem;cursor:pointer;transition:all 0.2s;text-transform:uppercase}
+button:hover{border-color:var(--crest);color:var(--foam)}
+button.on{border-color:var(--foam);color:var(--foam);background:rgba(90,157,232,0.08)}
+.footer-note{font-size:0.48rem;color:var(--tide);letter-spacing:0.1em;font-family:'Noto Serif TC',serif;font-weight:200;max-width:380px;text-align:right;line-height:1.9}
+</style>
+</head>
+<body>
+<canvas id="field"></canvas>
+<div class="ui">
+  <header>
+    <div class="title-block">
+      <h1>𝒻[ρ]=ρ　　ma = ma·(-1)^a　　螺旋臨界遞歸</h1>
+      <p>(-1)^a = e^(iπa) · spiral phase · critical recursion at even-integer a · singularity = phase interface</p>
+    </div>
+    <div class="iter"><div class="n" id="iterNum">0</div><div class="l">iteration</div></div>
+  </header>
+  <div class="eq-panel">
+    <div class="eq-block" id="eq0">
+      <div class="eq-label">正常時空 a≈0</div>
+      <div class="eq-text">F實 = F虛·ma<br>(-1)^0 = +1<br>虛驅動實</div>
+    </div>
+    <div class="eq-block" id="eq1">
+      <div class="eq-label">奇點翻轉 a=奇數</div>
+      <div class="eq-text"><em>(-1)^a = −1</em><br>F虛 = F實·ma<br>實驅動虛</div>
+    </div>
+    <div class="eq-block" id="eq2">
+      <div class="eq-label">螺旋過渡 a=分數</div>
+      <div class="eq-text">(-1)^a = e^(iπa)<br>cos(πa)+i·sin(πa)<br><em>複數相位旋轉</em></div>
+    </div>
+    <div class="eq-block" id="eq3">
+      <div class="eq-label">臨界遞歸條件</div>
+      <div class="eq-text">a = 偶數整數<br>cos(πa)=1，c取純實<br><em>狹義相對論在此成立</em></div>
+    </div>
+  </div>
+  <div class="stat-panel">
+    <div class="stat-item"><div class="s-label">Field Energy</div><div class="s-val" id="sEnergy">0.000</div></div>
+    <div class="stat-item"><div class="s-label">Coupling Gap</div><div class="s-val" id="sDelta">—</div></div>
+    <div class="stat-item"><div class="s-label">Fixed Points</div><div class="s-val" id="sFP">0</div></div>
+    <div class="stat-item"><div class="s-label">Spiral Cells</div><div class="s-val" id="sWave">0</div></div>
+    <div class="stat-item"><div class="s-label">Critical Recursion</div><div class="s-val" id="sCritical" style="font-size:0.72rem">no</div></div>
+  </div>
+  <footer>
+    <div class="controls">
+      <button id="btnPause">暫停</button>
+      <button id="btnReset">重置</button>
+      <button id="btnPerturb">擾動</button>
+      <button id="btnAuto" class="on">自動擾動 ●</button>
+    </div>
+    <div class="footer-note" id="footerNote">ma = ma·(-1)^a　　臨界遞歸：a取偶數整數，cos(πa)=1，c純實，狹義相對論成立。</div>
+  </footer>
+</div>
+<script>
+'use strict';
+const canvas = document.getElementById('field');
+const ctx = canvas.getContext('2d');
+
+// ── Sizing ────────────────────────────────────────────────
+const CELL = 4;
+let W, H, COLS, ROWS;
+
+// ── Buffers ───────────────────────────────────────────────
+let phi_R, phi_I, phi_R_prev, phi_I_prev;
+let rho, rho_new, wave, coupling, phase_field;
+
+// ── State ─────────────────────────────────────────────────
+let t = 0, iteration = 0, paused = false;
+let seeds = [], fixedPoints = [], totalDelta = 0;
+let autoPerturbEnabled = true, lastPerturbTime = 0, perturbInterval = 2.2, perturbPhase = 0;
+
+function idx(c, r){ return r * COLS + c; }
+
+function initSize(){
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  COLS = Math.ceil(W / CELL);
+  ROWS = Math.ceil(H / CELL);
+  const N = COLS * ROWS;
+  phi_R      = new Float32Array(N);
+  phi_I      = new Float32Array(N);
+  phi_R_prev = new Float32Array(N);
+  phi_I_prev = new Float32Array(N);
+  rho        = new Float32Array(N);
+  rho_new    = new Float32Array(N);
+  wave       = new Float32Array(N);
+  coupling   = new Float32Array(N);
+  phase_field= new Float32Array(N);
+}
+
+function initField(){
+  t = 0; iteration = 0; fixedPoints = [];
+  seeds = [];
+  const n = 4 + Math.floor(Math.random() * 4);
+  for(let i = 0; i < n; i++){
+    seeds.push({
+      cx: 0.15 + Math.random()*0.7,
+      cy: 0.15 + Math.random()*0.7,
+      strength: 0.4 + Math.random()*0.8,
+      phase: Math.random()*Math.PI*2,
+      freq:  0.3 + Math.random()*0.7
+    });
+  }
+  for(let r = 0; r < ROWS; r++){
+    for(let c = 0; c < COLS; c++){
+      const x = c/COLS, y = r/ROWS;
+      let vR = 0, vI = 0;
+      for(const s of seeds){
+        const dx = x-s.cx, dy = y-s.cy;
+        const r2 = dx*dx + dy*dy + 0.002;
+        const pot = s.strength / Math.sqrt(r2) * 0.08;
+        vR += pot;
+        vI += pot * Math.sin(s.phase + Math.atan2(dy,dx)*0.5);
+      }
+      const ji = 0.9 + Math.random()*0.2;
+      phi_R[idx(c,r)]      = vR;
+      phi_R_prev[idx(c,r)] = vR * ji;
+      phi_I[idx(c,r)]      = vI;
+      phi_I_prev[idx(c,r)] = vI * ji;
+      rho[idx(c,r)]        = 0;
+    }
+  }
+}
+
+// ── Field step ────────────────────────────────────────────
+const SING_T = 1.6, SING_C = 2.4;
+const BETA = 0.04, GMAT = 0.07, DT2 = 0.016, DAMP = 0.9945, CK = 0.06;
+
+function stepField(){
+  // Global coupling gap for critical recursion check
+  let gapSum = 0;
+  for(let i = 0; i < coupling.length; i++) gapSum += Math.abs(coupling[i]);
+  const avgGap = gapSum / (coupling.length || 1);
+  const inCrit = avgGap < 0.008;
+
+  totalDelta = 0;
+  let fpCount = 0, singCount = 0;
+
+  // Seeds breathe
+  for(const s of seeds){
+    s.cx += Math.sin(t*s.freq + s.phase)*0.0003;
+    s.cy += Math.cos(t*s.freq*0.7 + s.phase)*0.0003;
+    s.cx = Math.max(0.05, Math.min(0.95, s.cx));
+    s.cy = Math.max(0.05, Math.min(0.95, s.cy));
+  }
+
+  // Base potential
+  const bR = new Float32Array(phi_R.length);
+  const bI = new Float32Array(phi_I.length);
+  for(let r = 0; r < ROWS; r++){
+    for(let c = 0; c < COLS; c++){
+      const x = c/COLS, y = r/ROWS;
+      let vR = 0, vI = 0;
+      for(const s of seeds){
+        const dx = x-s.cx, dy = y-s.cy;
+        const r2 = dx*dx+dy*dy+0.002;
+        const pot = s.strength/Math.sqrt(r2)*0.08;
+        vR += pot;
+        vI += pot*Math.sin(s.phase+Math.atan2(dy,dx)*0.5);
+      }
+      bR[idx(c,r)] = vR; bI[idx(c,r)] = vI;
+    }
+  }
+
+  const pRn = new Float32Array(phi_R.length);
+  const pIn = new Float32Array(phi_I.length);
+
+  for(let r = 1; r < ROWS-1; r++){
+    for(let c = 1; c < COLS-1; c++){
+      const i = idx(c,r);
+      const lapR = phi_R[idx(c+1,r)]+phi_R[idx(c-1,r)]+phi_R[idx(c,r+1)]+phi_R[idx(c,r-1)]-4*phi_R[i];
+      const lapI = phi_I[idx(c+1,r)]+phi_I[idx(c-1,r)]+phi_I[idx(c,r+1)]+phi_I[idx(c,r-1)]-4*phi_I[i];
+      const sR = -BETA*phi_R[i]*phi_R[i]*phi_R[i] + BETA*bR[i];
+      const sI = -BETA*phi_I[i]*phi_I[i]*phi_I[i] + BETA*bI[i];
+      const back = GMAT*rho[i];
+      const gx = (phi_R[idx(c+1,r)]-phi_R[idx(c-1,r)])*0.5;
+      const gy = (phi_R[idx(c,r+1)]-phi_R[idx(c,r-1)])*0.5;
+      const local_ma = Math.sqrt(gx*gx+gy*gy)+0.001;
+      const mag = Math.sqrt(phi_R[i]*phi_R[i]+phi_I[i]*phi_I[i]);
+
+      // ── ma = ma·(-1)^a  →  (-1)^a = e^(iπa) ─────────────
+      // a: continuous recursion depth, 0 in normal space, grows near singularity
+      let a = 0;
+      if(mag > SING_T){
+        a = ((mag-SING_T)/(SING_C-SING_T+0.001))*3.0;
+        a = Math.min(a, 6.0);
+      }
+      // Slow time breathing — capped to prevent NaN
+      const timeDrift = t * 0.04 * Math.min(mag/(SING_T+0.1), 2.0);
+      a = Math.min(a + timeDrift, 8.0);
+
+      // (-1)^a = e^(iπa)
+      const spirR = Math.cos(Math.PI*a);  // Re: +1 at even a (critical), -1 at odd (flip)
+      const spirI = Math.sin(Math.PI*a);  // Im: spiral transverse
+
+      // Critical: cos(πa)→1  ⟺  a→even integer
+      const nearCrit = (Math.abs(spirR-1.0) < 0.15) && inCrit;
+
+      // Complex c: rotates with a/2, collapses to pure real at critical
+      let ecR, ecI;
+      if(nearCrit){
+        ecR = 1.0; ecI = 0.0;
+      } else {
+        const w = Math.min(a/1.5, 1.0);
+        ecR = Math.cos(Math.PI*a*0.5)*w + (1-w);
+        ecI = Math.sin(Math.PI*a*0.5)*w;
+      }
+
+      // Lorentz — always finite
+      const v2 = gx*gx+gy*gy;
+      const gc = 1.0/Math.sqrt(ecR*ecR+ecI*ecI+v2+0.001);
+
+      // F_R = F_I·ma scaled by spiral_R  (the (-1)^a factor)
+      const Fdrive  = CK*phi_I[i]*local_ma*spirR;
+      const FdriveR = CK*phi_R[i]*local_ma*spirR;
+      // Transverse cross-coupling from spiral imaginary part
+      const FcrossR = CK*phi_I[i]*local_ma*spirI*0.35;
+      const FcrossI = CK*phi_R[i]*local_ma*spirI*0.35;
+
+      coupling[i]     = phi_R[i] - Fdrive;
+      phase_field[i]  = Math.atan2(phi_I[i], phi_R[i]) + spirI*0.4;
+
+      let nR = (2*phi_R[i]-phi_R_prev[i])*DAMP + DT2*(lapR*18*gc*ecR + sR + back + Fdrive*0.3 + FcrossR*0.18);
+      let nI = (2*phi_I[i]-phi_I_prev[i])*(DAMP+0.002) + DT2*(lapI*18*gc*(ecR+ecI) + sI - FdriveR*0.18 + FcrossI*0.28);
+
+      // Hard clamp — NaN / explosion guard
+      if(!isFinite(nR) || Math.abs(nR)>20) nR = 0;
+      if(!isFinite(nI) || Math.abs(nI)>20) nI = 0;
+
+      pRn[i] = nR; pIn[i] = nI;
+      const dR = nR-phi_R[i], dI = nI-phi_I[i];
+      wave[i] = Math.sqrt(dR*dR+dI*dI);
+      totalDelta += wave[i];
+      if(a > 0.05) singCount++;
+    }
+  }
+
+  // Boundary (copy edge)
+  for(let r = 0; r < ROWS; r++){
+    pRn[idx(0,r)]=pRn[idx(1,r)]; pRn[idx(COLS-1,r)]=pRn[idx(COLS-2,r)];
+    pIn[idx(0,r)]=pIn[idx(1,r)]; pIn[idx(COLS-1,r)]=pIn[idx(COLS-2,r)];
+  }
+  for(let c = 0; c < COLS; c++){
+    pRn[idx(c,0)]=pRn[idx(c,1)]; pRn[idx(c,ROWS-1)]=pRn[idx(c,ROWS-2)];
+    pIn[idx(c,0)]=pIn[idx(c,1)]; pIn[idx(c,ROWS-1)]=pIn[idx(c,ROWS-2)];
+  }
+
+  // ── Matter emergence ──────────────────────────────────────
+  const ET=0.42, FT=0.0004, GT=0.05;
+  fixedPoints = [];
+  for(let r=2; r<ROWS-2; r++){
+    for(let c=2; c<COLS-2; c++){
+      const i=idx(c,r);
+      rho_new[i]=rho[i]*0.97;
+      const mag2=Math.sqrt(pRn[i]*pRn[i]+pIn[i]*pIn[i]);
+      const gap=Math.abs(coupling[i])<GT;
+
+      // Normal emergence
+      if(pRn[i]>ET && wave[i]<FT && gap){
+        rho_new[i]=Math.min(rho[i]+0.04,1.0); fpCount++;
+        if(rho_new[i]>0.5 && Math.random()<0.002)
+          fixedPoints.push({x:c*CELL,y:r*CELL,v:rho_new[i],ph:phase_field[i],sing:false,layer:0});
+      }
+
+      // Spiral resonance: near even-integer a layers
+      let a2=0;
+      if(mag2>SING_T){
+        a2=Math.min(((mag2-SING_T)/(SING_C-SING_T+0.001))*3.0,6.0);
+        a2=Math.min(a2+t*0.04*Math.min(mag2/(SING_T+0.1),2.0),8.0);
+      }
+      const sR2=Math.cos(Math.PI*a2);
+      const nearEven=Math.abs(sR2-1.0)<0.18;
+      const layer=Math.floor(a2/2);
+      if(nearEven && a2>0.4 && mag2>SING_T*0.65 && wave[i]<FT*6 && Math.random()<0.003){
+        rho_new[i]=Math.min(rho[i]+0.05,1.0); fpCount++;
+        fixedPoints.push({x:c*CELL,y:r*CELL,v:rho_new[i],ph:phase_field[i],sing:true,layer});
+      }
+
+      // Interference nodes
+      const wC=wave[i];
+      const wN=wave[idx(c+1,r)]+wave[idx(c-1,r)]+wave[idx(c,r+1)]+wave[idx(c,r-1)];
+      if(wC>0.002 && wC*4>wN*1.1 && mag2>0.3) rho_new[i]=Math.min(rho_new[i]+0.012,1.0);
+    }
+  }
+
+  phi_R_prev.set(phi_R); phi_R.set(pRn);
+  phi_I_prev.set(phi_I); phi_I.set(pIn);
+  rho.set(rho_new);
+
+  iteration++; t+=0.016;
+
+  // Stats
+  document.getElementById('iterNum').textContent=iteration;
+  document.getElementById('sEnergy').textContent=(totalDelta/phi_R.length*1000).toFixed(3);
+  document.getElementById('sDelta').textContent=avgGap.toExponential(2);
+  document.getElementById('sFP').textContent=fpCount;
+  document.getElementById('sWave').textContent=singCount;
+  const crEl=document.getElementById('sCritical');
+  crEl.textContent=inCrit?'YES ●':'no';
+  crEl.style.color=inCrit?'#f0f060':'#2a5090';
+
+  const eqI=Math.floor(t*0.3)%4;
+  for(let i=0;i<4;i++) document.getElementById('eq'+i).classList.toggle('pulse',i===eqI);
+
+  const notes=[
+    'ma=ma·(-1)^a　a=偶數: cos(πa)=+1，臨界遞歸，c純實。',
+    'a=奇數: cos(πa)=-1，相位翻轉，F虛=F實·ma。',
+    '(-1)^a=e^(iπa)：螺旋連續旋轉，奇點是相位介面非終點。',
+    'sin(πa)橫向耦合：45°過渡點，實虛場互相注入。',
+    '每兩個遞歸單位循環一次。每一圈是一個宇宙。',
+  ];
+  if(iteration%200===0)
+    document.getElementById('footerNote').textContent=notes[Math.floor(iteration/200)%notes.length];
+}
+
+// ── Render ────────────────────────────────────────────────
+function render(){
+  const imgData=ctx.createImageData(W,H);
+  const data=imgData.data;
+
+  let rMin=Infinity,rMax=-Infinity,iMin=Infinity,iMax=-Infinity,wMax=0;
+  for(let i=0;i<phi_R.length;i++){
+    if(phi_R[i]<rMin)rMin=phi_R[i]; if(phi_R[i]>rMax)rMax=phi_R[i];
+    if(phi_I[i]<iMin)iMin=phi_I[i]; if(phi_I[i]>iMax)iMax=phi_I[i];
+    if(wave[i]>wMax)wMax=wave[i];
+  }
+  const rRange=rMax-rMin+0.001, iRange=iMax-iMin+0.001;
+
+  // Critical flash
+  let gapSum2=0;
+  for(let i=0;i<coupling.length;i++) gapSum2+=Math.abs(coupling[i]);
+  const ag2=gapSum2/(coupling.length||1);
+  const cFlash=ag2<0.008?(1-ag2/0.008)*0.14:0;
+
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const i=idx(c,r);
+      const pR=(phi_R[i]-rMin)/rRange;
+      const pI=(phi_I[i]-iMin)/iRange;
+      const wn=Math.min(wave[i]/(wMax+0.0001),1.0);
+      const mn=rho[i];
+      const ph=phase_field[i];
+      const mag=Math.sqrt(phi_R[i]*phi_R[i]+phi_I[i]*phi_I[i]);
+
+      // Recursion depth for colour
+      let a=0;
+      if(mag>SING_T){
+        a=Math.min(((mag-SING_T)/(SING_C-SING_T+0.001))*3.0,6.0);
+        a=Math.min(a+t*0.04*Math.min(mag/(SING_T+0.1),2.0),8.0);
+      }
+      const sR=Math.cos(Math.PI*a);  // +1=critical(blue), -1=flip(crimson)
+      const sI=Math.sin(Math.PI*a);  // spiral transverse (green)
+      const horiz=Math.abs(mag-SING_T)<SING_T*0.11;
+
+      let R,G,B;
+      if(a<0.04){
+        // Normal space — blue + teal
+        R=Math.floor(4+pR*15+pI*10);
+        G=Math.floor(8+pR*40+pI*70);
+        B=Math.floor(18+pR*110+pI*50);
+        const pc=Math.sin(ph)*0.5+0.5;
+        G=Math.min(255,G+Math.floor(pc*35));
+        B=Math.min(255,B+Math.floor(Math.cos(ph)*20));
+      } else {
+        // Spiral zone — colour by (-1)^a
+        // blend: 0=even(blue) 1=odd(crimson)
+        const blend=(1-sR)*0.5;
+        R=Math.floor((10+blend*150)*Math.min(1,0.4+mag*0.25)+pI*18);
+        G=Math.floor((25+Math.abs(sI)*70)*(0.3+mag*0.2));
+        B=Math.floor((140-blend*120)*(0.4+mag*0.22));
+      }
+
+      // Horizon ring
+      if(horiz){
+        const hr=1-Math.abs(mag-SING_T)/(SING_T*0.11);
+        R=Math.min(255,R+Math.floor(hr*200));
+        G=Math.min(255,G+Math.floor(hr*100));
+        B=Math.min(255,B+Math.floor(hr*230));
+      }
+
+      // Wave crests
+      const wi=Math.pow(wn,0.45);
+      if(a<0.3){
+        R=Math.min(255,R+Math.floor(wi*45));
+        G=Math.min(255,G+Math.floor(wi*120));
+        B=Math.min(255,B+Math.floor(wi*190));
+      } else {
+        // Spiral waves pulse with sR
+        R=Math.min(255,R+Math.floor(wi*(0.5+(1-sR)*0.5)*140));
+        G=Math.min(255,G+Math.floor(wi*55));
+        B=Math.min(255,B+Math.floor(wi*(0.5+(1+sR)*0.5)*160));
+      }
+
+      // Shimmer
+      const sh=Math.sin(phi_R[i]*12+t*0.8)*0.5+0.5;
+      G=Math.min(255,G+Math.floor(sh*pR*10));
+      B=Math.min(255,B+Math.floor(sh*pR*15));
+
+      // Matter
+      if(mn>0.05){
+        const mI=Math.pow(mn,0.55);
+        if(a<0.3){
+          R=Math.min(255,R+Math.floor(mI*210)); G=Math.min(255,G+Math.floor(mI*145)); B=Math.max(0,Math.floor(B*(1-mI*0.85)));
+        } else if(Math.abs(sR)<0.25){
+          // 45° transition: bright white
+          R=Math.min(255,R+Math.floor(mI*240)); G=Math.min(255,G+Math.floor(mI*240)); B=Math.min(255,B+Math.floor(mI*240));
+        } else if(sR<0){
+          // Odd layer: violet
+          R=Math.min(255,R+Math.floor(mI*200)); G=Math.min(255,G+Math.floor(mI*80)); B=Math.min(255,B+Math.floor(mI*250));
+        } else {
+          // Even layer deep: teal-gold
+          R=Math.min(255,R+Math.floor(mI*155)); G=Math.min(255,G+Math.floor(mI*200)); B=Math.min(255,B+Math.floor(mI*75));
+        }
+      }
+
+      // Critical flash
+      R=Math.min(255,R+Math.floor(cFlash*255));
+      G=Math.min(255,G+Math.floor(cFlash*255));
+      B=Math.min(255,B+Math.floor(cFlash*255));
+
+      for(let dy=0;dy<CELL;dy++) for(let dx=0;dx<CELL;dx++){
+        const px=(r*CELL+dy)*W+(c*CELL+dx);
+        if(px*4+3<data.length){data[px*4]=R;data[px*4+1]=G;data[px*4+2]=B;data[px*4+3]=255;}
+      }
+    }
+  }
+  ctx.putImageData(imgData,0,0);
+
+  // Seed rings
+  for(const s of seeds){
+    const sx=s.cx*W,sy=s.cy*H,sr=s.strength*8+4;
+    const br=Math.sin(t*s.freq*2+s.phase)*0.3+0.7;
+    ctx.save();
+    ctx.strokeStyle=`rgba(40,200,180,${br*0.22})`; ctx.lineWidth=1; ctx.setLineDash([2,6]);
+    ctx.beginPath(); ctx.arc(sx,sy,sr*br*4.5,0,Math.PI*2); ctx.stroke();
+    ctx.strokeStyle=`rgba(90,157,232,${br*0.32})`; ctx.setLineDash([3,5]);
+    ctx.beginPath(); ctx.arc(sx,sy,sr*br*3,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    const cg=ctx.createRadialGradient(sx,sy,0,sx,sy,sr*2);
+    cg.addColorStop(0,`rgba(140,210,255,${br*0.6})`);
+    cg.addColorStop(0.5,`rgba(42,109,191,${br*0.18})`);
+    cg.addColorStop(1,'transparent');
+    ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(sx,sy,sr*2,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Fixed point halos
+  const lHues=[280,0,170,45,220,320];
+  for(const fp of fixedPoints){
+    if(!fp.sing){
+      const hue=((fp.ph+Math.PI)/(2*Math.PI))*60+30;
+      const fg=ctx.createRadialGradient(fp.x,fp.y,0,fp.x,fp.y,18);
+      fg.addColorStop(0,`hsla(${hue},90%,80%,${fp.v*0.95})`);
+      fg.addColorStop(0.5,`hsla(${hue},80%,55%,${fp.v*0.4})`);
+      fg.addColorStop(1,'transparent');
+      ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(fp.x,fp.y,18,0,Math.PI*2); ctx.fill();
+    } else {
+      const hue=lHues[(fp.layer||0)%lHues.length];
+      const rad=14+(fp.layer||0)*2.5;
+      const fg=ctx.createRadialGradient(fp.x,fp.y,0,fp.x,fp.y,rad);
+      fg.addColorStop(0,`hsla(${hue},95%,85%,${fp.v*0.9})`);
+      fg.addColorStop(0.5,`hsla(${hue},85%,55%,${fp.v*0.45})`);
+      fg.addColorStop(1,'transparent');
+      ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(fp.x,fp.y,rad,0,Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+// ── Perturbations ─────────────────────────────────────────
+function perturb(){
+  perturbPhase=(perturbPhase+1)%5;
+  if(perturbPhase===0){
+    const cx=Math.floor(0.1*COLS+Math.random()*0.8*COLS);
+    const cy=Math.floor(0.1*ROWS+Math.random()*0.8*ROWS);
+    const amp=0.5+Math.random()*0.6;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const d=Math.sqrt((c-cx)**2+(r-cy)**2);
+      if(d<50){const p=amp*Math.exp(-d*0.1)*Math.cos(d*0.45); phi_R[idx(c,r)]+=p; phi_I[idx(c,r)]+=p*Math.sin(d*0.45);}
+    }
+  } else if(perturbPhase===1){
+    const cx1=Math.floor(COLS*0.25),cy1=Math.floor(ROWS*0.5);
+    const cx2=Math.floor(COLS*0.75),cy2=Math.floor(ROWS*0.5);
+    const amp=0.4;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const d1=Math.sqrt((c-cx1)**2+(r-cy1)**2), d2=Math.sqrt((c-cx2)**2+(r-cy2)**2);
+      phi_R[idx(c,r)]+=amp*Math.exp(-d1*0.06)*Math.cos(d1*0.35)+amp*Math.exp(-d2*0.06)*Math.cos(d2*0.35);
+      phi_I[idx(c,r)]+=amp*Math.exp(-d1*0.06)*Math.sin(d1*0.35)+amp*Math.exp(-d2*0.06)*Math.sin(d2*0.35);
+    }
+  } else if(perturbPhase===2){
+    const cx=Math.floor(COLS*(0.3+Math.random()*0.4));
+    const cy=Math.floor(ROWS*(0.3+Math.random()*0.4));
+    const rr=20+Math.random()*30, amp=0.6;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const d=Math.sqrt((c-cx)**2+(r-cy)**2);
+      const sR=amp*Math.exp(-Math.pow(d-rr,2)/60), sI=amp*Math.exp(-Math.pow(d-rr*1.3,2)/80);
+      phi_R[idx(c,r)]+=sR; phi_R_prev[idx(c,r)]+=sR*0.85;
+      phi_I[idx(c,r)]+=sI; phi_I_prev[idx(c,r)]+=sI*0.85;
+    }
+  } else if(perturbPhase===3){
+    const amp=0.35, kx=0.3+Math.random()*0.2, ky=0.3+Math.random()*0.2;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<Math.floor(COLS*0.3);c++)
+      phi_R[idx(c,r)]+=amp*Math.exp(-c*0.05)*Math.cos(c*kx+r*0.05);
+    for(let r=0;r<Math.floor(ROWS*0.3);r++) for(let c=0;c<COLS;c++)
+      phi_I[idx(c,r)]+=amp*Math.exp(-r*0.05)*Math.cos(r*ky+c*0.05);
+  } else {
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const x=c/COLS,y=r/ROWS; let pR=0,pI=0;
+      for(const s of seeds){
+        const d=Math.sqrt((x-s.cx)**2+(y-s.cy)**2);
+        pR+=s.strength*Math.exp(-d*4)*0.3; pI+=s.strength*Math.exp(-d*4)*0.3*Math.sin(s.phase);
+      }
+      phi_R[idx(c,r)]+=pR; phi_I[idx(c,r)]+=pI;
+    }
+  }
+}
+
+// ── Controls ──────────────────────────────────────────────
+document.getElementById('btnPause').addEventListener('click',function(){
+  paused=!paused; this.textContent=paused?'繼續':'暫停';
+  this.classList.toggle('on',!paused);
+});
+document.getElementById('btnReset').addEventListener('click',()=>{initSize();initField();});
+document.getElementById('btnPerturb').addEventListener('click',perturb);
+document.getElementById('btnAuto').addEventListener('click',function(){
+  autoPerturbEnabled=!autoPerturbEnabled;
+  this.textContent=autoPerturbEnabled?'自動擾動 ●':'自動擾動 ○';
+  this.classList.toggle('on',autoPerturbEnabled);
+});
+canvas.addEventListener('click',e=>{
+  const cx=Math.floor(e.clientX/CELL), cy=Math.floor(e.clientY/CELL), amp=0.4;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const d=Math.sqrt((c-cx)**2+(r-cy)**2);
+    if(d<40){const p=amp*Math.exp(-d*0.12)*Math.cos(d*0.4); phi_R[idx(c,r)]+=p; phi_I[idx(c,r)]+=p*Math.sin(d*0.4);}
+  }
+});
+window.addEventListener('resize',()=>{initSize();initField();});
+
+// ── Main loop ─────────────────────────────────────────────
+const STEPS=3;
+let realTime=0, lastFrame=null;
+
+function loop(ts){
+  if(lastFrame===null) lastFrame=ts;
+  const dt=Math.min((ts-lastFrame)/1000,0.05);
+  lastFrame=ts;
+  if(!paused){
+    realTime+=dt;
+    if(autoPerturbEnabled && realTime-lastPerturbTime>perturbInterval){
+      perturb(); lastPerturbTime=realTime;
+      perturbInterval=1.8+Math.random()*1.5;
+    }
+    for(let s=0;s<STEPS;s++) stepField();
+  }
+  render();
+  requestAnimationFrame(loop);
+}
+
+initSize();
+initField();
+setTimeout(()=>perturb(),800);
+setTimeout(()=>perturb(),2400);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
